@@ -6,3 +6,10 @@ venv310/
 .vscode/
 __pycache__/
 *.pyc
+.venv/
+venv/
+env/
+__pycache__/
+*.pyd
+*.dll
+*.so
