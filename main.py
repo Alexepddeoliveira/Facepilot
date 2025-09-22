@@ -5,6 +5,11 @@ import time
 import math
 import threading
 import platform
+import tkinter as tk
+from tkinter import ttk
+
+# >>> IMPORTA A UI DESACOPLADA <<<
+from interface import TkHeadMouseUI
 
 # ================== BACKENDS DE MOUSE ==================
 HAS_PDI = False
@@ -355,6 +360,53 @@ def setup_global_hotkeys():
     except Exception as e:
         print(f"[AVISO] Hotkeys globais falharam: {e}")
 
+# ======== COLA PARA A UI (estado) ========
+def get_ui_state():
+    return {
+        "deadzone_deg": deadzone_deg,
+        "gain_yaw": gain_yaw,
+        "gain_pitch": gain_pitch,
+        "gain_power": gain_power,
+        "max_speed_px": max_speed_px,
+        "ema_alpha": ema_alpha,
+        "vel_ema_alpha": vel_ema_alpha,
+        "edge_margin": edge_margin,
+        "edge_accel_max": edge_accel_max,
+        "edge_accel_rate": edge_accel_rate,
+        "edge_decay_rate": edge_decay_rate,
+        "yaw_strong_deg": yaw_strong_deg,
+        "yaw_strong_rate": yaw_strong_rate,
+        "INVERT_Y": INVERT_Y,
+        "EDGE_ACCEL_ENABLED": EDGE_ACCEL_ENABLED,
+    }
+
+def set_ui_state(st):
+    global deadzone_deg, gain_yaw, gain_pitch, gain_power, max_speed_px
+    global ema_alpha, vel_ema_alpha
+    global edge_margin, edge_accel_max, edge_accel_rate, edge_decay_rate
+    global yaw_strong_deg, yaw_strong_rate
+    global INVERT_Y, EDGE_ACCEL_ENABLED
+
+    deadzone_deg   = float(st["deadzone_deg"])
+    gain_yaw       = float(st["gain_yaw"])
+    gain_pitch     = float(st["gain_pitch"])
+    gain_power     = float(st["gain_power"])
+    max_speed_px   = int(st["max_speed_px"])
+
+    ema_alpha      = float(st["ema_alpha"])
+    vel_ema_alpha  = float(st["vel_ema_alpha"])
+
+    edge_margin    = int(st["edge_margin"])
+    edge_accel_max = float(st["edge_accel_max"])
+    edge_accel_rate= float(st["edge_accel_rate"])
+    edge_decay_rate= float(st["edge_decay_rate"])
+
+    yaw_strong_deg = float(st["yaw_strong_deg"])
+    yaw_strong_rate= float(st["yaw_strong_rate"])
+
+    INVERT_Y       = bool(st["INVERT_Y"])
+    EDGE_ACCEL_ENABLED = bool(st["EDGE_ACCEL_ENABLED"])
+
 # ------------- MAIN -------------
 def main():
     global neutral_yaw, neutral_pitch, neutral_roll
@@ -365,6 +417,19 @@ def main():
 
     if HAS_GLOBAL_KEYS:
         threading.Thread(target=setup_global_hotkeys, daemon=True).start()
+
+    # >>> CRIA A UI (antes da câmera) <<<
+    ui = TkHeadMouseUI(
+        presets=PRESETS,
+        current_preset_provider=lambda: current_preset,
+        apply_preset=lambda idx: apply_preset(idx, silent=False),
+        get_state=get_ui_state,
+        set_state=set_ui_state,
+        toggle_control=toggle_control,
+        toggle_edgeaccel=toggle_edgeaccel,
+        request_recalibrate=request_recalibrate,
+    )
+    ui.sync_from_preset()
 
     cap = cv2.VideoCapture(0)
     if not cap.isOpened():
@@ -384,6 +449,8 @@ def main():
         calib_samples = []
         start = time.time()
         while time.time() - start < CALIBRATION_TIME:
+            ui.pump()  # mantém UI responsiva durante calibração
+
             ok, frame = cap.read()
             if not ok: continue
             frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
@@ -414,6 +481,10 @@ def main():
 
         last_key_inwin = 0.0
         while True:
+            # mantém UI viva e aplica sliders → globais
+            ui.pump()
+            ui.read_into_globals()
+
             ok, frame = cap.read()
             if not ok: continue
 
@@ -423,6 +494,7 @@ def main():
                 samples = []
                 t0 = time.time()
                 while time.time() - t0 < CALIBRATION_TIME:
+                    ui.pump()  # UI durante recalibração também
                     ok2, f2 = cap.read()
                     if not ok2: continue
                     rgb2 = cv2.cvtColor(f2, cv2.COLOR_BGR2RGB)
