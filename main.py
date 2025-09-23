@@ -6,6 +6,50 @@ import math
 import threading
 import platform
 
+# =========================
+# Arrow-keys -> Mouse (com supressão)
+# =========================
+# Requisitos: keyboard, pyautogui
+# Observação: no Linux pode precisar rodar com sudo.
+
+def setup_arrow_as_mouse():
+    """
+    Usa as setas do teclado como botões do mouse:
+    - ← = clique esquerdo
+    - → = clique direito
+    - ↑ = scroll up
+    - ↓ = scroll down
+    """
+    if not HAS_GLOBAL_KEYS:
+        print("[AVISO] 'keyboard' não disponível.")
+        return
+
+    # cada tecla dispara ação e é suprimida (não vai para outros programas)
+    keyboard.add_hotkey("left", lambda: pyautogui.click(button="left"), suppress=True)
+    keyboard.add_hotkey("right", lambda: pyautogui.click(button="right"), suppress=True)
+    keyboard.add_hotkey("up", lambda: pyautogui.scroll(100), suppress=True)
+    keyboard.add_hotkey("down", lambda: pyautogui.scroll(-100), suppress=True)
+
+    print("[OK] Setas agora controlam o mouse (e não vão para outros programas).")
+
+def block_arrow_keys():
+    """
+    Bloqueia as teclas de setas (← ↑ → ↓) para que outros programas não recebam.
+    O script ainda consegue capturar eventos dessas teclas.
+    """
+    if not HAS_GLOBAL_KEYS:
+        print("[AVISO] 'keyboard' não disponível.")
+        return
+
+    # Apenas consome as setas, sem mapear
+    keyboard.add_hotkey("left", lambda: None, suppress=True)
+    keyboard.add_hotkey("right", lambda: None, suppress=True)
+    keyboard.add_hotkey("up", lambda: None, suppress=True)
+    keyboard.add_hotkey("down", lambda: None, suppress=True)
+
+    print("[OK] Setas bloqueadas (invisíveis para outros apps).")
+
+
 # ================== BACKENDS DE MOUSE ==================
 HAS_PDI = False
 try:
@@ -66,10 +110,19 @@ SCREEN_W, SCREEN_H = pyautogui.size()
 
 # ========== PRESETS ==========
 PRESETS = [
-    {"name":"Precisao (mira)",   "deadzone_deg":4.0, "gain_yaw":7.0,  "gain_pitch":6.5, "gain_power":1.25,
-     "max_speed_px":20, "ema_alpha":0.12, "vel_ema_alpha":0.30,
-     "edge_margin":25, "edge_accel_max":4.0, "edge_accel_rate":2.5, "edge_decay_rate":5.0,
-     "yaw_strong_deg":10.0, "yaw_strong_rate":2.0},
+    {"name":"Precisao (mira)",   
+     "deadzone_deg":4.0, #Responsividade
+     "gain_yaw":7.0,  "gain_pitch":6.5, #Sensibilidade
+     "gain_power":1.25, #Curva
+     "max_speed_px":20, #Limite de velocidade por freme
+     "ema_alpha":0.12, 
+     "vel_ema_alpha":0.30,
+     "edge_margin":25, 
+     "edge_accel_max":4.0, 
+     "edge_accel_rate":2.5, 
+     "edge_decay_rate":5.0,
+     "yaw_strong_deg":10.0, 
+     "yaw_strong_rate":2.0},
     {"name":"Equilibrio (geral)","deadzone_deg":3.0, "gain_yaw":9.0,  "gain_pitch":8.0, "gain_power":1.35,
      "max_speed_px":25, "ema_alpha":0.15, "vel_ema_alpha":0.25,
      "edge_margin":25, "edge_accel_max":6.0, "edge_accel_rate":3.0, "edge_decay_rate":4.0,
@@ -78,10 +131,21 @@ PRESETS = [
      "max_speed_px":40, "ema_alpha":0.20, "vel_ema_alpha":0.20,
      "edge_margin":28, "edge_accel_max":8.0, "edge_accel_rate":5.0, "edge_decay_rate":3.0,
      "yaw_strong_deg":6.0,  "yaw_strong_rate":4.0},
-    {"name":"Personalizado",     "deadzone_deg":3.5, "gain_yaw":10.0, "gain_pitch":8.5, "gain_power":1.30,
-     "max_speed_px":30, "ema_alpha":0.16, "vel_ema_alpha":0.25,
-     "edge_margin":25, "edge_accel_max":6.0, "edge_accel_rate":3.5, "edge_decay_rate":4.0,
-     "yaw_strong_deg":7.0,  "yaw_strong_rate":3.0},
+    {"name":"Personalizado",    
+    "deadzone_deg": 4.0,      # responsividade
+    "gain_yaw": 7.0, 
+    "gain_pitch": 6.5,        # deixa vertical igual
+    "gain_power": 1.25,       # curva não linear
+    "max_speed_px": 28,       # velocidade base mais alta
+    "ema_alpha": 0.12, 
+    "vel_ema_alpha": 0.30,
+    "edge_margin": 25, 
+    "edge_accel_max": 0.0,    # sem turbo na borda
+    "edge_accel_rate": 0.0, 
+    "edge_decay_rate": 0.0,
+    "yaw_strong_deg": 10.0, 
+    "yaw_strong_rate": 2.0
+},
 ]
 current_preset = 1
 
@@ -365,6 +429,10 @@ def main():
 
     if HAS_GLOBAL_KEYS:
         threading.Thread(target=setup_global_hotkeys, daemon=True).start()
+        threading.Thread(target=setup_arrow_as_mouse, daemon=True).start()
+        threading.Thread(target=block_arrow_keys, daemon=True).start()
+
+
 
     cap = cv2.VideoCapture(0)
     if not cap.isOpened():
